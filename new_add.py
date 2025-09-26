@@ -251,6 +251,11 @@ st.markdown(
 st.markdown(
     """
     <style>
+    /* --- Streamlit 헤더 숨기기 --- */
+    [data-testid="stHeader"] {
+        background-color: transparent; /* 헤더 배경을 투명하게 만듦 */
+    }
+
     /* ===== 공통 컨테이너 (들여쓰기 적용) ===== */
     .content-container {
         padding-left: 30px;   /* 좌측 여백 */
