@@ -1,3 +1,4 @@
+
 import streamlit as st
 import datetime
 import joblib
@@ -225,27 +226,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 전체 제목 디자인
-st.markdown(
-    """
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <h1 style="display:flex; align-items:center; color:white; font-size:30px;">
-        <i class="bi bi-bullseye" style="margin-right:10px; color:#E9353E;"></i>
-        신규 광고 매체 추천 시스템
-    </h1>
-    """,
-    unsafe_allow_html=True
-)
-
-# 전체 부제목 디자인
-st.markdown(
-    """
-    <h3 style="color:white; font-size:25px; margin-top:0;">
-        새로운 광고에 대해 예측하시나요?
-    </h3>
-    """,
-    unsafe_allow_html=True
-)
 
 # 공통 CSS 스타일 정의
 st.markdown(
@@ -354,8 +334,8 @@ if "active_tab" not in st.session_state:
     st.session_state.active_tab = "광고 정보" 
 
 
-menu_options = ["광고 정보", "추천 매체", "광고조합별 정보", "매체별 정보"]
-menu_icons = ["house", "bar-chart", "intersect", "collection"]
+menu_options = ["광고 정보", "추천 매체", "매체 상세 분석"]
+menu_icons = ["house", "bar-chart", "collection"]
 
 # 현재 세션 상태에 맞는 탭의 인덱스를 계산
 try:
@@ -432,7 +412,8 @@ if st.session_state.active_tab == '광고 정보':
             st.markdown("<br>", unsafe_allow_html=True) 
 
             # 광고 길이
-            ads_length = st.number_input('▶︎\u00A0\u00A0 광고 길이', min_value=1, value=200, step=1, key="length_input")
+            ads_length = st.number_input('▶︎\u00A0\u00A0 광고 내용 길이', min_value=1, value=200, step=1, key="length_input",
+                                         help='광고 문구의 글자 수(빈칸 포함)를 입력해주세요.')
     
         with st.expander("𝟮. 광고 조건"):
             # 광고 집행 개시일
@@ -440,7 +421,7 @@ if st.session_state.active_tab == '광고 정보':
             st.markdown("<br>", unsafe_allow_html=True) 
 
             # 광고 진행 일수
-            active_days = st.number_input('▶︎\u00A0\u00A0 광고 진행 일수', min_value=1, max_value=7, step=1,
+            active_days = st.number_input('▶︎\u00A0\u00A0 주간 광고 진행 일수', min_value=1, max_value=7, step=1,
                                         help='일주일(7일) 중 광고 진행 예정 일수')
             st.markdown("<br>", unsafe_allow_html=True) 
             
@@ -613,236 +594,135 @@ elif st.session_state.active_tab == '추천 매체':
             unsafe_allow_html=True
         )
     else:
-        st.info("먼저 광고 정보를 입력하고 실행을 눌러주세요.")
+        st.info("먼저 '광고 정보' 탭에서 정보를 입력하고 실행해주세요.")
 
 
-# 광고조합별 정보
-elif st.session_state.active_tab == "광고조합별 정보":
-    if "results_df" in st.session_state and st.session_state.results_df is not None and "user_inputs" in st.session_state:
-        domain_key = st.session_state.user_inputs["domain"]
-        ads_3step_key = st.session_state.user_inputs["ads_3step"]   # int 그대로
-        ads_os_type_key = st.session_state.user_inputs["ads_os_type"]  # int 그대로
-
-        # 안내 문구
-        st.markdown(
-            "<div style='text-align:left; color:gray; font-size:12px; padding-left:30px;'>"
-            "※ 광고 조합 : 광고 도메인 + 광고 분류 3단계 + 앱/웹 광고"
-            "<br>"
-            "※ 아래 지표들은 조합별로 집계된 현재까지의 매체별 누적 성과입니다."
-            "</div>",
-            unsafe_allow_html=True
-        )
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # 스타일 정의
+# 매체 상세 분석
+elif selected == "매체 상세 분석":
+    if "results_df" in st.session_state and st.session_state["results_df"] is not None and "user_inputs" in st.session_state:
+        
         st.markdown(
             """
             <style>
-            .filter-title {
-                font-size: 18px;
-                font-weight: 700;
-                color: white;
-                margin-bottom: -90px;
-                margin-top: -5px;
-                padding-left: 33px;
+            /* --- Selectbox 제목 스타일 --- */
+            .filter-title { font-size: 18px; font-weight: 700; color: white; margin-bottom: -90px; margin-top: -5px; padding-left: 33px; }
+            div[data-testid="stSelectbox"] { width: 90% !important; margin: 0 auto; }
+            
+            /* --- 섹션 제목과 경고창 여백 --- */
+            .section-header, [data-testid="stAlert"] { margin-left: 30px !important; margin-right: 30px !important; }
+            
+            /* --- Flexbox 컨테이너 스타일 --- */
+            .kpi-container {
+                display: flex;
+                justify-content: space-between;
+                margin: 0 30px; /* 좌우 30px 여백 */
             }
-            div[data-baseweb="select"] {
-                width: 90% !important;
-                margin-left: auto;
-                margin-right: auto;
+            
+            /* --- KPI 카드 개별 스타일 --- */
+            .kpi-card { 
+                background-color: #1C1C1C; 
+                border-radius: 12px; 
+                padding: 15px;
+                flex: 1; /* 모든 카드가 동일한 너비를 차지하도록 설정 */
+                margin: 0 5px; /* 카드 사이 간격 */
+                text-align: center;
             }
+            .kpi-title { font-size: 14px; color: #aaa; margin-bottom: 8px; }
+            .kpi-value { font-size: 20px; color: #E9353E; font-weight: 700; }
+
+            /* --- 섹션 제목 개별 스타일 --- */
+            .section-header { font-size: 16px; font-weight: bold; color: white; margin-top: 25px; margin-bottom: 15px; border-bottom: 2px solid #444; padding-bottom: 5px; }
             </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # 후보 매체 찾기
-        combo_tbl = lookup_tables["domain_ads_3step_mda_idx_acost_mean"]
-        valid_mda_choices = [
-            k[2] for k in combo_tbl.keys()
-            if isinstance(k, tuple) and len(k) == 3
-            and k[0] == domain_key and k[1] == ads_3step_key
-        ]
-        valid_mda_choices = sorted(set(valid_mda_choices), key=lambda x: int(x))
-
-        if valid_mda_choices:
-            # 제목 + selectbox
-            st.markdown("<p class='filter-title'>매체 선택</p>", unsafe_allow_html=True)
-            mda_choice_similar = st.selectbox("", valid_mda_choices, key="mda_similar_select")
-            key_tuple = (domain_key, ads_3step_key, mda_choice_similar)
-
-            val_acost = lookup_tables['domain_ads_3step_mda_idx_acost_mean'].get(key_tuple)
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            if val_acost is None or val_acost == 0 or (isinstance(val_acost, float) and np.isnan(val_acost)):
-                st.warning("⚠ 이 매체 조합에 대한 유효한 데이터가 없습니다.")
-            else:
-                earn = lookup_tables['domain_ads_3step_mda_idx_earn_mean'].get(key_tuple, 0)
-                cvr = lookup_tables['domain_ads_3step_mda_idx_cvr'].get(key_tuple, 0)
-                turn = lookup_tables['domain_ads_3step_mda_idx_turn_per_day'].get(key_tuple, 0)
-
-                # 카드 4개 KPI (매체별 정보와 동일한 스타일)
-                col1, col2, col3, col4 = st.columns(4)
-
-                with col1:
-                    st.markdown(
-                        f"""
-                        <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                    text-align:center; margin-bottom:15px;">
-                            <div style="color:#aaa; font-size:14px; margin-bottom:6px;">평균 광고 단가</div>
-                            <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                                {val_acost:,.0f} 원
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True
-                    )
-
-                with col2:
-                    st.markdown(
-                        f"""
-                        <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                    text-align:center; margin-bottom:15px;">
-                            <div style="color:#aaa; font-size:14px; margin-bottom:6px;">평균 매체사 수익</div>
-                            <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                                {earn:,.0f} 원
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True
-                    )
-
-                with col3:
-                    st.markdown(
-                        f"""
-                        <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                    text-align:center; margin-bottom:15px;">
-                            <div style="color:#aaa; font-size:14px; margin-bottom:6px;">평균 전환율</div>
-                            <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                                {cvr:.2%}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True
-                    )
-
-                with col4:
-                    st.markdown(
-                        f"""
-                        <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                    text-align:center; margin-bottom:15px;">
-                            <div style="color:#aaa; font-size:14px; margin-bottom:6px;">일평균 전환수</div>
-                            <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                                {turn:.2f} 회
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True
-                    )
-        else:
-            st.info("⚠️ 선택한 도메인과 광고 단계에 해당하는 유사 광고 매체 정보가 없습니다.")
-    else:
-        st.info("추천 결과가 없습니다. 먼저 실행해주세요.")
-
-
-# 매체별 정보
-elif st.session_state.active_tab == '매체별 정보':
-    if "results_df" in st.session_state and st.session_state.results_df is not None and "user_inputs" in st.session_state:
-        st.markdown(
-            "<div style='text-align:left; color:gray; font-size:12px; padding-left:30px;'>"
-            "※ 아래 지표들은 현재까지 집계된 매체별 누적 성과입니다."
-            "</div>",
-            unsafe_allow_html=True
-        )
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # 매체 선택 드롭다운 스타일 정의
-        st.markdown(
-            """
-            <style>
-            .filter-title {
-                font-size: 18px;       /* 글씨 크기 */
-                font-weight: 700;      /* 굵기 */
-                color: white;          /* 색상 */
-                margin-bottom: -90px;    /* 라벨과 간격 */
-                margin-top: -5px;      /* 위쪽 여백 줄이기 */
-                padding-left: 33px;
-            }
-
-            /* Selectbox 전체 컨테이너 */
-            div[data-baseweb="select"] {
-                width: 90% !important;
-                margin-left: auto;        /* 가운데 정렬 */
-                margin-right: auto;
-
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        all_mda_choices = sorted(lookup_tables["mda_mean_acost"].keys(), key=lambda x: int(x))
-
-        # 제목 따로 표시
+            """, unsafe_allow_html=True)
+        
+        # Selectbox와 제목 
         st.markdown("<p class='filter-title'>매체 선택</p>", unsafe_allow_html=True)
-
-        # selectbox 라벨은 비워둠
-        mda_choice = st.selectbox(
-            label="", 
-            options=all_mda_choices, 
-            key="mda_select"
-        )
+        all_media = sorted(lookup_tables["mda_mean_acost"].keys(), key=lambda x: int(x))
+        mda_choice = st.selectbox(label="", options=all_media, key="mda_detail_select")
         st.markdown("<br>", unsafe_allow_html=True)
 
         if mda_choice:
-            col1, col2, col3, col4 = st.columns(4)
+            # 1. 입력한 광고 조합 기준 성과
+            st.markdown("<div class='section-header'>입력하신 광고 조합 기준 매체 평균 성과</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='text-align:left; color:gray; font-size:12px; padding-left:30px;'>"
+                "※ 광고 조합 : 광고 도메인 + 광고 분류 3단계"
+                "<br>"
+                "※ 아래 지표들은 조합별로 집계된 현재까지의 매체별 일주일 누적 성과입니다."
+                "</div>",
+                unsafe_allow_html=True
+            )
+            st.markdown("<br>", unsafe_allow_html=True)
+            domain_key = st.session_state["user_inputs"]["domain"]
+            ads_3step_key = st.session_state["user_inputs"]["ads_3step"]
+            key_tuple = (domain_key, ads_3step_key, mda_choice)
 
-            with col1:
-                st.markdown(
-                    f"""
-                    <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                text-align:center; margin-bottom:15px;">
-                        <div style="color:#aaa; font-size:14px; margin-bottom:6px;">평균 광고 단가</div>
-                        <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                            {lookup_tables['mda_mean_acost'].get(mda_choice, 0):,.0f} 원
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
+            combo_acost = lookup_tables['domain_ads_3step_mda_idx_acost_mean'].get(key_tuple)
+            combo_clk = lookup_tables['domain_ads_3step_mda_idx_clk_mean'].get(key_tuple, 0)
+            combo_earn = lookup_tables['domain_ads_3step_mda_idx_earn_mean'].get(key_tuple, 0)
+            combo_turn = lookup_tables['domain_ads_3step_mda_idx_turn_mean'].get(key_tuple, 0)
 
-            with col2:
-                st.markdown(
-                    f"""
-                    <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                text-align:center; margin-bottom:15px;">
-                        <div style="color:#aaa; font-size:14px; margin-bottom:6px;">평균 매체사 수익</div>
-                        <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                            {lookup_tables['mda_mean_earn'].get(mda_choice, 0):,.0f} 원
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
+            if combo_acost is None:
+                st.warning("선택하신 매체는 입력하신 광고 조합과 일치하는 유의미한 과거 데이터가 없습니다.")
+            else:
 
-            with col3:
-                st.markdown(
-                    f"""
-                    <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                text-align:center; margin-bottom:15px;">
-                        <div style="color:#aaa; font-size:14px; margin-bottom:6px;">평균 클릭수</div>
-                        <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                            {lookup_tables['mda_mean_clk'].get(mda_choice, 0):,.2f} 회
-                        </div>
+                
+                st.markdown(f"""
+                <div class="kpi-container">
+                    <div class="kpi-card">
+                        <div class="kpi-title">광고 단가</div>
+                        <div class="kpi-value">{combo_acost:,.0f} 원</div>
                     </div>
-                    """, unsafe_allow_html=True
-                )
+                    <div class="kpi-card">
+                        <div class="kpi-title">매체사 수익</div>
+                        <div class="kpi-value">{combo_earn:,.0f} 원</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">클릭수</div>
+                        <div class="kpi-value">{combo_clk:.2f} 회</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">전환수</div>
+                        <div class="kpi-value">{combo_turn:.2f} 회</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-            with col4:
-                st.markdown(
-                    f"""
-                    <div style="background:#2D2D2D; border-radius:12px; padding:15px; 
-                                text-align:center; margin-bottom:15px;">
-                        <div style="color:#aaa; font-size:14px; margin-bottom:6px;">평균 전환수</div>
-                        <div style="color:#E9353E; font-size:18px; font-weight:700;">
-                            {lookup_tables['mda_mean_turn'].get(mda_choice, 0):.2f} 회
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # 2. 해당 매체의 전체 평균 성과 
+            st.markdown("<div class='section-header'>매체 전체 평균 성과</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='text-align:left; color:gray; font-size:12px; padding-left:30px;'>"
+                "※ 아래 지표들은 현재까지 집계된 매체별 일주일 누적 성과입니다."
+                "</div>",
+                unsafe_allow_html=True
+            )
+            st.markdown("<br>", unsafe_allow_html=True)
+            overall_acost = lookup_tables['mda_mean_acost'].get(mda_choice, 0)
+            overall_earn = lookup_tables['mda_mean_earn'].get(mda_choice, 0)
+            overall_clk = lookup_tables['mda_mean_clk'].get(mda_choice, 0)
+            overall_turn = lookup_tables['mda_mean_turn'].get(mda_choice, 0)
+            
+            st.markdown(f"""
+            <div class="kpi-container">
+                <div class="kpi-card">
+                    <div class="kpi-title">광고 단가</div>
+                    <div class="kpi-value">{overall_acost:,.0f} 원</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">매체사 수익</div>
+                    <div class="kpi-value">{overall_earn:,.0f} 원</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">클릭수</div>
+                    <div class="kpi-value">{overall_clk:,.2f} 회</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">전환수</div>
+                    <div class="kpi-value">{overall_turn:.2f} 회</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.info("추천 결과가 없습니다. 먼저 실행해주세요.")
+        st.info("먼저 '광고 정보' 탭에서 정보를 입력하고 추천 결과를 확인해주세요.")
