@@ -206,7 +206,7 @@ st.set_page_config(page_title='신규 광고 매체 추천 시스템')
 st.markdown(
     """
     <style>
-    .stApp {background-color: #2D2D2D;}
+    .stApp {background-color: #1A1A1A;}
     </style>
     """,
     unsafe_allow_html=True
