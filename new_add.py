@@ -805,11 +805,13 @@ if st.session_state.active_tab == '추천 매체':
                 "ive 예상 수익 (원)": "{:,.0f}"
             })
 
-            # 첫 번째 행의 '랭킹 점수' 셀만 빨간색 배경 강조
-            first_label = df_display.index[0]
+            # 최고 랭킹 점수를 가진 행 찾기
+            max_rank_idx = df_display["랭킹 점수"].idxmax()
+
+            # 스타일 적용
             styled = styled.applymap(
                 lambda _: "background-color: #E9353E; color: white; font-weight: 700;",
-                subset=pd.IndexSlice[[first_label], ["랭킹 점수"]]
+                subset=pd.IndexSlice[[max_rank_idx], ["랭킹 점수"]]
             )
 
             st.dataframe(styled, use_container_width=True)
