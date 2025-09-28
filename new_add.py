@@ -425,7 +425,7 @@ st.markdown(
     <style>
         /* 전체 페이지 상단 여백 제거 */
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 2rem;
         }
     </style>
     """,
