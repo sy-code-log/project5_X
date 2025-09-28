@@ -419,18 +419,18 @@ st.markdown(
 )
 
 
-# # 상단 여백 
-# st.markdown(
-#     """
-#     <style>
-#         /* 전체 페이지 상단 여백 제거 */
-#         .block-container {
-#             padding-top: 1rem;
-#         }
-#     </style>
-#     """,
-#     unsafe_allow_html=True
-# )
+# 상단 여백 
+st.markdown(
+    """
+    <style>
+        /* 전체 페이지 상단 여백 제거 */
+        .block-container {
+            padding-top: 0.5rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # 공통 CSS 스타일 정의
