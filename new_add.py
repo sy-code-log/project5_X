@@ -156,19 +156,7 @@ def make_feature_row(user_inputs: dict, lookup_tables: dict, start_date: datetim
     row["is_small_ads_3step_ads_os_type_mda_idx"] = check_small(final_df, ["ads_3step","ads_os_type","mda_idx"], (ads_3step, ads_os_type, mda))
     
 
-    df = pd.DataFrame([row])
-
-    # 카테고리형 
-    cat_cols = [
-        "domain", "ads_rejoin_type", "ads_os_type", "mda_idx", "ads_3step",
-        "domain_ads3step","domain_mda","ads3step_mda","domain_os","ads3step_os","mda_os"
-    ]
-    for col in cat_cols:
-        df[col] = df[col].astype("category")
-
-    # 학습 시 사용한 feature 순서와 맞추기
-    df = df.reindex(columns=feature_cols, fill_value=0)
-        
+    df = pd.DataFrame([row])        
     return df
 
 # 예상 전환수, 클릭수, 수익 구할 때 이전의 기록 사용하기 위해 가져올 값 정의하는 함수
@@ -262,10 +250,8 @@ def estimate_clicks(ad_budget, mean_acost, baseline_clicks):
     return max(blended, 0.1)
 
 # 매체별 1주일 기준 예측 결과를 계산하고 Top-N 추천
-def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_model, ranker_model, final_df, ad_budget: float, feature_cols: list, top_n: int = 10):
-    results = []
-
-    # 유사 광고 필터링 (domain + ads_3step + ads_os_type 기준)
+def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_model, ranker_model, final_df, ad_budget: float, feature_cols: list, top_n: int = 10, show_progress: bool = False):
+    # 유사 광고 필터링
     similar_ads = final_df[
         (final_df["domain"] == user_inputs["domain"]) &
         (final_df["ads_3step"] == user_inputs["ads_3step"]) &
@@ -273,43 +259,38 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
     ]
     similar_mda = similar_ads["mda_idx"].unique().tolist()
 
-    # 가능한 매체 목록 (유사 광고 매체만, 없으면 전체)
     if len(similar_mda) > 0:
         all_mda = [str(m) for m in similar_mda]
     else:
         all_mda = list(lookup_tables["mda_mean_acost"].keys())
 
-    for mda in all_mda:
+    # 2. 진행률 표시 준비
+    if show_progress:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+    feature_rows = []
+    extra_info = []
+
+    for i, mda in enumerate(all_mda):
         temp_inputs = user_inputs.copy()
         temp_inputs["mda_idx"] = str(mda)
 
-        # feature row 생성
         feature_row = make_feature_row(
             temp_inputs, lookup_tables, start_date, final_df, feature_cols
         )
+        feature_rows.append(feature_row)
 
-        # 1. 예측 전환율 (CVR 모델)
-        pred_cvr = cvr_model.predict(feature_row)[0]
-
-        # 2. 랭킹 점수 (Ranker 모델)
-        rank_score = ranker_model.predict(feature_row)[0]
-
-        # 3. 평균 광고비용 & 평균 매체사비용 & capacity
         keys = {
             "domain": user_inputs["domain"],
             "ads_3step": user_inputs["ads_3step"],
             "ads_os_type": user_inputs["ads_os_type"],
             "mda_idx": mda
         }
-
         mean_acost = get_fallback_value(lookup_tables, keys, "acost", default=1)
         mean_earn = get_fallback_value(lookup_tables, keys, "earn", default=0)
         capacity = get_fallback_value(lookup_tables, keys, "turn_per_day", default=np.inf)
 
-        if mean_acost is None or mean_acost <= 0:
-            mean_acost = 1
-
-        # 4. 과거 평균 클릭(주간) 기준 가져오기 + 진행일 보정
         baseline_clicks = get_baseline_clicks(
             lookup_tables,
             domain=user_inputs["domain"],
@@ -319,27 +300,63 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
             active_days=user_inputs.get("active_days", 7),
         )
 
-        # 5. 블렌딩 클릭 추정
-        expected_clicks = estimate_clicks(ad_budget, mean_acost, baseline_clicks)
+        extra_info.append({
+            "mda_idx": mda,
+            "mean_acost": mean_acost,
+            "mean_earn": mean_earn,
+            "capacity": capacity,
+            "baseline_clicks": baseline_clicks
+        })
 
-        # 6. 상한선(과도한 과대추정 방지) – 과거 평균의 3배
+        # 진행률 업데이트 (5% 단위 → 약 10번 업데이트)
+        if show_progress and (i + 1) % max(1, len(all_mda) // 20) == 0:
+            progress = int((i + 1) / len(all_mda) * 100)
+            progress_bar.progress(progress)
+            status_text.markdown(
+                f"<div class='custom-text'>계산 진행률: {progress}%</div>",
+                unsafe_allow_html=True
+            )
+
+
+    feature_df = pd.concat(feature_rows, ignore_index=True)
+
+    # categorical feature
+    cat_cols = [
+        "domain", "ads_rejoin_type", "ads_os_type", "mda_idx", "ads_3step",
+        "domain_ads3step","domain_mda","ads3step_mda","domain_os","ads3step_os","mda_os"
+    ]
+    for col in cat_cols:
+        if col in feature_df.columns:
+            feature_df[col] = feature_df[col].astype("category")
+
+    feature_df = feature_df.reindex(columns=feature_cols, fill_value=0)
+
+    # 모델 예측
+    cvr_preds = cvr_model.predict(feature_df)
+    rank_preds = ranker_model.predict(feature_df)
+
+    # 결과 계산
+    results = []
+    for i, info in enumerate(extra_info):
+        pred_cvr = cvr_preds[i]
+        rank_score = rank_preds[i]
+        mean_acost = max(1e-6, float(info["mean_acost"]))
+        mean_earn = float(info["mean_earn"])
+        baseline_clicks = info["baseline_clicks"]
+
+        expected_clicks = estimate_clicks(ad_budget, mean_acost, baseline_clicks)
         expected_clicks = min(expected_clicks, 3.0 * baseline_clicks)
 
-        # 6. 전환수
         expected_conversions = expected_clicks * pred_cvr
-
-        # 7. 비용/성과 계산
         expected_acost = expected_clicks * mean_acost
         expected_earn = expected_clicks * mean_earn
         expected_profit = expected_acost - expected_earn
 
-        # 8. 최소 기준 필터링
         if expected_profit <= 0:
             continue
 
-        # 9. 결과 저장
         results.append({
-            "mda_idx": mda,
+            "mda_idx": info["mda_idx"],
             "rank_score": rank_score,
             "predicted_cvr": pred_cvr,
             "expected_clicks": expected_clicks,
@@ -349,7 +366,7 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
             "ive_expected_profit": expected_profit
         })
 
-    # 10. 정렬
+    # 정렬 + ROI 계산
     results_df = (
         pd.DataFrame(results)
         .sort_values(by="rank_score", ascending=False)
@@ -357,32 +374,9 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
         .reset_index(drop=True)
     )
     results_df.index = results_df.index + 1
-
-    # 11. 광고주 ROI 추가 (성과/비용)
     results_df["ROI"] = results_df["expected_earn"] / (results_df["expected_acost"] + 1e-6)
 
     return results_df
-
-# 상위 5개 매체에 대해 ROI 기반으로 예산 배분 추천
-def recommend_budget_allocation(results_df, total_budget):
-    # 상위 5개 매체만 사용
-    top5 = results_df.head(5).copy()
-
-    # ROI 비율 정규화
-    top5["allocation_ratio"] = top5["ROI"] / top5["ROI"].sum()
-
-    # 권장 예산 배분
-    top5["allocated_budget"] = top5["allocation_ratio"] * total_budget
-
-    return top5[[
-        "mda_idx",
-        "ROI",
-        "allocation_ratio",
-        "allocated_budget",
-        "expected_clicks",
-        "expected_conversions",
-        "ive_expected_profit"   
-    ]]
 
 # -------------------------------------------------
 
@@ -531,6 +525,37 @@ st.markdown(
 )
 
 
+# 진행률 바 디자인
+st.markdown(
+    """
+    <style>
+    /* Streamlit Progress Bar 색상 */
+    .stProgress > div > div > div > div {
+        background-color: #E9353E;
+        border-radius: 6px;
+    }
+
+    /* 진행률 바 전체 컨테이너 여백 */
+    .stProgress {
+        max-width: calc(100% - 60px);  /* 전체 폭에서 좌우 30px 빼기 */
+        margin-left: 30px;
+        margin-right: 30px;
+    }
+
+    /* 커스텀 텍스트 (스피너 / 진행률 %) 여백 */
+    .custom-text {
+        margin-left: 30px;
+        margin-right: 30px;
+    }
+
+    /* ▶ 스피너(⏳ 문구) 컨테이너 좌우 30px */
+    /* 최신 스트림릿 */
+    div[data-testid="stSpinner"] { margin-left: 30px !important; margin-right: 30px !important; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # 세션 상태 초기화
 if "results_df" not in st.session_state:
     st.session_state.results_df = None
@@ -559,8 +584,8 @@ selected = option_menu(
     styles={
         "container": {"padding": "0!important", "background-color": "black", "border": "none"},
         "icon": {"font-size": "18px"},
-        "nav-link": {"font-size": "16px", "font-weight": "700", "text-align": "center", "margin": "0px", "--hover-color": "#eee"},
-        "nav-link-selected": {"background-color": "#E9353E", "color": "white", "border-radius": "8px"},
+        "nav-link": {"font-size": "16px", "font-weight": "400", "text-align": "center", "margin": "0px", "--hover-color": "#eee"},
+        "nav-link-selected": {"background-color": "#E9353E", "color": "white", "border-radius": "8px", "font-weight": "700", },
     }
 )
 
@@ -675,21 +700,25 @@ if st.session_state.active_tab == '광고 정보':
                 "ads_payment": ads_payment,
                 "active_days" : active_days,
             }
-            results_df = predict_and_rank(
-                user_inputs=user_inputs,
-                lookup_tables=lookup_tables,
-                start_date=start_date,
-                cvr_model=cvr_model,
-                ranker_model=ranker_model,
-                final_df=final_df,
-                ad_budget=ad_budget,
-                feature_cols=feature_cols,
-                top_n=top_n
-            )
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.spinner("⏳ 추천 매체 계산 중... 잠시만 기다려주세요."):
+                results_df = predict_and_rank(
+                    user_inputs=user_inputs,
+                    lookup_tables=lookup_tables,
+                    start_date=start_date,
+                    cvr_model=cvr_model,
+                    ranker_model=ranker_model,
+                    final_df=final_df,
+                    ad_budget=ad_budget,
+                    feature_cols=feature_cols,
+                    top_n=top_n,
+                    show_progress=True
+                )
+
             st.session_state.results_df = results_df
             st.session_state.user_inputs = user_inputs
-            
-            # '추천 매체' 탭으로 이동하도록 상태 변경 후 rerun
+
+            # '추천 매체' 탭으로 이동
             st.session_state.active_tab = "추천 매체"
             st.rerun()
 
