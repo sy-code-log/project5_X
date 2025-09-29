@@ -335,11 +335,17 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
     cvr_preds = cvr_model.predict(feature_df)
     rank_preds = ranker_model.predict(feature_df)
 
+    # rank_score 스케일링 (0~1)
+    scores = np.array(rank_preds)
+    scaled_rank_scores = (scores - scores.min()) / (scores.max() - scores.min() + 1e-9)
+    
     # 결과 계산
     results = []
     for i, info in enumerate(extra_info):
         pred_cvr = cvr_preds[i]
-        rank_score = rank_preds[i]
+        rank_score = rank_preds[i]              # 내부 정렬용
+        scaled_score = scaled_rank_scores[i]    # 보여주기용
+
         mean_acost = max(1e-6, float(info["mean_acost"]))
         mean_earn = float(info["mean_earn"])
         baseline_clicks = info["baseline_clicks"]
@@ -350,26 +356,27 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
         expected_conversions = expected_clicks * pred_cvr
         expected_acost = expected_clicks * mean_acost
         expected_earn = expected_clicks * mean_earn
-        expected_profit = expected_acost - expected_earn
+        expected_profit = expected_acost - expected_earn  # 🔹 수정
 
         if expected_profit <= 0:
             continue
 
         results.append({
             "mda_idx": info["mda_idx"],
-            "rank_score": rank_score,
+            # "rank_score": rank_score,   # ⚠️ 숨김
+            "scaled_rank_score": scaled_score,  # 시연에서만 보여주기
             "predicted_cvr": pred_cvr,
             "expected_clicks": expected_clicks,
             "expected_conversions": expected_conversions,
             "expected_acost": expected_acost,
             "expected_earn": expected_earn,
-            "ive_expected_profit": expected_profit
+            "expected_profit": expected_profit
         })
 
     # 정렬 + ROI 계산
     results_df = (
         pd.DataFrame(results)
-        .sort_values(by="rank_score", ascending=False)
+        .sort_values(by="scaled_rank_score", ascending=False)
         .head(top_n)
         .reset_index(drop=True)
     )
@@ -774,7 +781,7 @@ if st.session_state.active_tab == '추천 매체':
             st.markdown("<p class='sort-title'>추천 정렬 기준</p>", unsafe_allow_html=True)
             sort_option = st.radio(
                 label="",
-                options=("랭킹 점수", "예상 전환율 (%)", "ive 예상 수익 (원)"),
+                options=("추천 점수", "예상 전환율 (%)", "ive 예상 수익 (원)"),
                 index=0,
                 horizontal=True,
                 key="sort_option_radio"
@@ -787,11 +794,11 @@ if st.session_state.active_tab == '추천 매체':
         # 필요한 컬럼만 선택
         df_display = results_df[[
             "mda_idx",
-            "rank_score",
+            "scaled_rank_score",
             "predicted_cvr",
             "expected_clicks",
             "expected_conversions",
-            "ive_expected_profit"
+            "expected_profit"
         ]].copy()
 
         # 전환율 퍼센트 변환
@@ -800,19 +807,19 @@ if st.session_state.active_tab == '추천 매체':
         # 한글 컬럼명으로 교체
         df_display = df_display.rename(columns={
             "mda_idx": "매체 번호",
-            "rank_score": "랭킹 점수",
+            "scaled_rank_score": "추천 점수",
             "predicted_cvr": "예상 전환율 (%)",
             "expected_clicks": "예상 클릭수",
             "expected_conversions": "예상 전환수",
-            "ive_expected_profit": "ive 예상 수익 (원)"
+            "expected_profit": "ive 예상 수익 (원)"
         })
 
         # 최소 클릭수 필터 적용
         df_display = df_display[df_display["예상 클릭수"] >= min_clicks]
 
         # 정렬 기준 적용
-        if sort_option == "랭킹 점수":
-            df_display = df_display.sort_values(by="랭킹 점수", ascending=False)
+        if sort_option == "추천 점수":
+            df_display = df_display.sort_values(by="추천 점수", ascending=False)
         elif sort_option == "예상 전환율 (%)":
             df_display = df_display.sort_values(by="예상 전환율 (%)", ascending=False)
         elif sort_option == "ive 예상 수익 (원)":
@@ -827,20 +834,20 @@ if st.session_state.active_tab == '추천 매체':
         else:
             # 포맷 지정
             styled = df_display.style.format({
-                "랭킹 점수": "{:.4f}",
+                "추천 점수": "{:.4f}",
                 "예상 전환율 (%)": "{:.2f}",
                 "예상 클릭수": "{:,.0f}",
                 "예상 전환수": "{:,.0f}",
                 "ive 예상 수익 (원)": "{:,.0f}"
             })
 
-            # 최고 랭킹 점수를 가진 행 찾기
-            max_rank_idx = df_display["랭킹 점수"].idxmax()
+            # 최고 추천 점수를 가진 행 찾기
+            max_rank_idx = df_display["추천 점수"].idxmax()
 
             # 스타일 적용
             styled = styled.applymap(
                 lambda _: "background-color: #E9353E; color: white; font-weight: 700;",
-                subset=pd.IndexSlice[[max_rank_idx], ["랭킹 점수"]]
+                subset=pd.IndexSlice[[max_rank_idx], ["추천 점수"]]
             )
 
             st.dataframe(styled, use_container_width=True)
