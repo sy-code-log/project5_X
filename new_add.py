@@ -338,7 +338,7 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
     # rank_score 스케일링 (0~1)
     scores = np.array(rank_preds)
     scaled_rank_scores = (scores - scores.min()) / (scores.max() - scores.min() + 1e-9)
-    
+
     # 결과 계산
     results = []
     for i, info in enumerate(extra_info):
@@ -414,6 +414,13 @@ st.markdown(
     """
     <style>
     .stApp {background-color: #2D2D2D;}
+
+    /* 카드/박스/데이터프레임 배경 */
+    [data-testid="stDataFrame"],
+    .stDataFrame{
+        background-color: #262730 !important;
+        color: #FAFAFA !important;
+    }
     </style>
     """,
     unsafe_allow_html=True
