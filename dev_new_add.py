@@ -879,6 +879,7 @@ if st.session_state.active_tab == '광고 정보':
         
         st.markdown("<br>", unsafe_allow_html=True)
 
+
         # 실행 버튼
         if st.button("실행", key="run_button"):
             user_inputs = {
