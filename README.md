@@ -1,4 +1,4 @@
-# 🧠 Project 5. 똑똑한 광고의 시작  
+# Project 5. 똑똑한 광고의 시작  
 > **어뷰징 탐지와 소진량 최적화를 통한 광고 성과 극대화**  
 > 신규 광고의 초기 성과를 예측하고, 최적 매체를 자동 추천하는 **AI 기반 광고 운영 시스템**
 
@@ -45,7 +45,7 @@
 
 ## 📎 참고 링크
 - [📊 Streamlit](https://project5-dev-new-add-mda-recommendation.streamlit.app/)
-- [🎞️ 발표자료 (Figma)](https://www.figma.com/deck/MINDUPnlYwkw8mWKjB8kTp/%EC%B5%9C%EC%A2%85-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8---IVE-KOREA-%EB%B0%9C%ED%91%9C-%EC%9E%90%EB%A3%8C--%EB%B3%B5%EC%82%AC-?t=BXVE6Nvqs83tU8gI-1)
+- [🖥 발표자료 (Figma)](https://www.figma.com/deck/MINDUPnlYwkw8mWKjB8kTp/%EC%B5%9C%EC%A2%85-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8---IVE-KOREA-%EB%B0%9C%ED%91%9C-%EC%9E%90%EB%A3%8C--%EB%B3%B5%EC%82%AC-?t=BXVE6Nvqs83tU8gI-1)
 - [🧩 포트폴리오 상세 페이지](https://www.notion.so/28eeea1a6413815c82f2d31d4bef601f?source=copy_link)
 
 ---
