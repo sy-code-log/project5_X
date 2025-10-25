@@ -300,7 +300,7 @@ def predict_and_rank(user_inputs: dict, lookup_tables: dict, start_date, cvr_mod
             "mda_idx": mda,
             "mean_acost": mean_acost,
             "mean_earn": mean_earn,
-            "mean_cpc": mean_cpc,  # <--- ⭐️ 1. 여기에 mean_cpc를 추가해서 저장합니다.
+            "mean_cpc": mean_cpc,  
             "baseline_clicks": baseline_clicks
         })
         
